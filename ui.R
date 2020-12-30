@@ -63,6 +63,7 @@ shinyUI(fluidPage(
             width = 6,
             offset = 3
           ),
+          br(),
           h4(htmlOutput("recommendation")),
           
           column(
