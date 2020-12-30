@@ -1,0 +1,45 @@
+name: Deploy to shinyapps.io
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+  workflow_dispatch:
+
+jobs:
+  deploy-shiny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: r-lib/actions/setup-r@master
+
+      - name: Install packages
+        run: |
+          install.packages("pak")
+          pak::pkg_install(
+            pkg = c(
+              "shiny",
+              "rsconnect",
+              "tidyverse",
+              "lubridate",
+              "ellisvalentiner/lubridateExtras",
+              "scales",
+              "glue",
+              "sentryR"
+            )
+          )
+        shell: Rscript {0}
+
+      - name: Deploy
+        with:
+          RSCONNECT: ${{ secrets.RSCONNECT }}
+        run: |
+          rsconnect::setAccountInfo(
+            name='ellis-valentiner',
+            token='3F668E0B320A9F3CB7B558CB47379486',
+            secret=Sys.getenv("RSCONNECT")
+          )
+          rsconnect::deployApp(appName = 'dte-rate-comparison')
+        shell: Rscript {0}
