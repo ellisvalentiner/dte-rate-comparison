@@ -164,7 +164,7 @@ shinyServer(function(input, output) {
         renderText({
             req(is.null(input$file))
             
-            "Upload your energy usage data to and get your personalized recommendation."
+            "Upload your energy usage data to get your personalized recommendation."
         })
     
     output$recommendation <-
