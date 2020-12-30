@@ -1,37 +1,38 @@
 library(shiny)
-library(readr)
-library(tibble)
-library(dplyr)
+
+library(tidyverse)
 library(lubridate)
 library(lubridateExtras)
-library(ggplot2)
 library(scales)
-library(tidyr)
 library(glue)
-library(forcats)
+
 library(sentryR)
 
-configure_sentry(
-    dsn = Sys.getenv("SENTRY_DSN"), 
-    app_name = "dte-rate-comparison",
-    app_version = "0.0.0-pre"
-)
-
-error_handler <- function() {
-    capture(
-        exception = list(
-            type = geterrmessage(),
-            value = geterrmessage(),
-            stacktrace = list(
-                frames = sentryR:::calls_to_stacktrace(
-                    calls = sys.calls()
-                )
-            )
-        ),
-        level = "error"
-    )
+if (Sys.getenv("SENTRY_DSN") != "") {
+  configure_sentry(
+      dsn = Sys.getenv("SENTRY_DSN"), 
+      app_name = "dte-rate-comparison",
+      app_version = "0.0.0-pre"
+  )
+  
+  error_handler <- function() {
+      capture(
+          exception = list(
+              type = geterrmessage(),
+              value = geterrmessage(),
+              stacktrace = list(
+                  frames = sentryR:::calls_to_stacktrace(
+                      calls = sys.calls()
+                  )
+              )
+          ),
+          level = "error"
+      )
+  }
+  options(
+    shiny.error = error_handler
+  )
 }
-options(shiny.error = error_handler)
 
 # Define server logic
 shinyServer(function(input, output) {
@@ -163,7 +164,7 @@ shinyServer(function(input, output) {
         renderText({
             req(is.null(input$file))
             
-            "Upload your data."
+            "Upload your energy usage data to and get your personalized recommendation."
         })
     
     output$recommendation <-
