@@ -54,16 +54,6 @@ shinyUI(fluidPage(
               "Upload the electricity usage CSV file by clicking the \"Browse\" button on this page."
             )
           ),
-          # titlePanel("About this project"),
-          # p(
-          #   "This is a simple tool to compare the cost between DTE's",
-          #   "standard electric rate and the Dynamic Peak Pricing rate."
-          # ),
-          # p("This project was built using the",
-          #   strong(
-          #     a(href = "https://shiny.rstudio.com", "shiny")
-          #   ),
-          #   "framework in R."),
           width = 4
         ),
         mainPanel(
