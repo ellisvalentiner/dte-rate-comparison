@@ -33,7 +33,7 @@ jobs:
         shell: Rscript {0}
 
       - name: Deploy
-        with:
+        env:
           RSCONNECT: ${{ secrets.RSCONNECT }}
         run: |
           rsconnect::setAccountInfo(
