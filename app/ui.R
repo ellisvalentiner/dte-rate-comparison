@@ -58,7 +58,11 @@ shinyUI(fluidPage(
         ),
         mainPanel(
           titlePanel("Rate Comparison"),
-          h4(htmlOutput("placeholder")),
+          column(
+            h4(htmlOutput("placeholder")),
+            width = 6,
+            offset = 3
+          ),
           h4(htmlOutput("recommendation")),
           
           column(
@@ -173,6 +177,12 @@ shinyUI(fluidPage(
               "This site calculates the costs for electricity usage only and",
               "doesn't include delivery charges, other fees, or credits that",
               "may appear on your bill."
+            ),
+            
+            h3("Do you collect, store, or share uploaded data?"),
+            h4(
+              strong("No."),
+              "Uploaded files are only used for estimating your electricity usage costs."
             )
           )
         )
