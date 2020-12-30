@@ -36,7 +36,8 @@ jobs:
               "ellisvalentiner/lubridateExtras",
               "scales",
               "glue",
-              "sentryR"
+              "sentryR",
+              "shinythemes"
             )
           )
         shell: Rscript {0}
