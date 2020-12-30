@@ -33,7 +33,6 @@ jobs:
               "shiny",
               "rsconnect",
               "tidyverse",
-              "lubridate",
               "ellisvalentiner/lubridateExtras",
               "scales",
               "glue",
