@@ -17,8 +17,7 @@ shinyUI(fluidPage(
           titlePanel("Upload Energy Usage Data"),
           p(
             "This tool will show you whether you would have saved money",
-            "by enrolling in the DTE Dynamic Peak Pricing rate program,",
-            "compared to the standard rate."
+            "by enrolling in an alternate rate program."
           ),
           fileInput(
             inputId = "file",
@@ -58,27 +57,49 @@ shinyUI(fluidPage(
         ),
         mainPanel(
           titlePanel("Rate Comparison"),
-          column(
-            h4(htmlOutput("placeholder")),
-            width = 6,
-            offset = 3
+          conditionalPanel(
+            condition = "!output.tod_hourly_usage",
+            column(
+              h4(htmlOutput("placeholder")),
+              width = 6,
+              offset = 3
+            )
           ),
-          br(),
           h4(htmlOutput("recommendation")),
           
           column(
             plotOutput(outputId = "usage_bars",
-                       width = "303px"),
+                       # width = "303px"),
+                       width = "660px"),
             align = "center",
             width = 12
           ),
           h4(htmlOutput("hourly_text")),
-          column(
-            plotOutput(outputId = "hourly_usage",
-                       width = "660px"),
-            align = "center",
-            width = 12
+          conditionalPanel(
+            condition = "output.tod_hourly_usage",
+            tabsetPanel(
+              id = "hourly_plots",
+              tabPanel(
+                title = "Time of Day",
+                column(
+                  plotOutput(outputId = "tod_hourly_usage",
+                             width = "660px"),
+                  align = "center",
+                  width = 12
+                )
+              ),
+              tabPanel(
+                title = "Dynamic Peak Pricing",
+                column(
+                  plotOutput(outputId = "dpp_hourly_usage",
+                             width = "660px"),
+                  align = "center",
+                  width = 12
+                )
+              )
+            )
           )
+            
         )
       )
     ),
@@ -96,7 +117,8 @@ shinyUI(fluidPage(
           h2("About This Project"),
           h4(
             "This tool shows you whether you would have saved money by enrolling in",
-            "the DTE Dynamic Peak Pricing rate program compared to the standard rate."
+            "the an alternative DTE rate program compared to the Residential Electricity",
+            "Service (RES) rate."
           ),
           h4(
             "This project is written in",
@@ -126,7 +148,7 @@ shinyUI(fluidPage(
             h3("What is this project?"),
             h4(
               "This is a simple tool to compare the cost between DTE's standard electric",
-              "rate and the Dynamic Peak Pricing rate."
+              "Time of Date, and Dynamic Peak Pricing rates."
             ),
             
             h3("What is ", strong("Dynamic Peak Pricing"), "?"),
