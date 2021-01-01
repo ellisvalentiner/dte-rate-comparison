@@ -3,8 +3,6 @@ name: Deploy to shinyapps.io
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
   workflow_dispatch:
 
@@ -41,6 +39,13 @@ jobs:
             )
           )
         shell: Rscript {0}
+      
+      - name: Create Renviron
+        env:
+          SENTRY_DSN: ${{ secrets.RSCONNECT }}
+        run: |
+          echo 'SENTRY_DSN=${SENTRY_DSN}' >> .Renviron
+          echo 'ENVIRONMENT=production' >> .Renviron
 
       - name: Deploy
         env:
