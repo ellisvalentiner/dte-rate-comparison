@@ -10,7 +10,7 @@ library(sentryR)
 
 conflicted::conflict_prefer("filter", "dplyr")
 
-if (R.version$os != "darwin17.0" &&
+if (Sys.getenv("ENVIRONMENT", "local") == "production" &&
     Sys.getenv("SENTRY_DSN") != "") {
   configure_sentry(
     dsn = Sys.getenv("SENTRY_DSN"),
