@@ -345,8 +345,7 @@ shinyServer(function(input, output) {
           axis.line.x = element_blank(),
           axis.ticks.x = element_blank(),
           panel.grid.major.x = element_blank()
-        )
-      
+        )      
     })
   
   output$hourly_text <-
@@ -464,5 +463,5 @@ shinyServer(function(input, output) {
     })
   
   outputOptions(output, "tod_hourly_usage", suspendWhenHidden = FALSE)
-  
+
 })
