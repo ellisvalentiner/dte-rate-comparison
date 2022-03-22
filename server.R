@@ -107,6 +107,21 @@ shinyServer(function(input, output) {
       "2021-11-25",
       "Christmas Day",
       "2021-12-25",
+      
+      "New Year’s Day",
+      "2022-01-01",
+      "Good Friday",
+      "2022-04-15",
+      "Memorial Day",
+      "2022-05-30",
+      "Independence Day",
+      "2022-07-04",
+      "Labor Day",
+      "2022-09-05",
+      "Thanksgiving Day",
+      "2022-11-24",
+      "Christmas Day",
+      "2022-12-25",
     ) %>%
     type_convert(col_types = cols(holiday = col_character(),
                                   date = col_date(format = "%Y-%m-%d")))
@@ -189,6 +204,7 @@ shinyServer(function(input, output) {
       )
       expected_columns <- c(
         "Account Number",
+        "Meter Number",
         "Day",
         "Hour of Day",
         "Hourly Total",
@@ -205,14 +221,17 @@ shinyServer(function(input, output) {
       usage <- 
         read_csv(
           file = input$file$datapath,
+          # file = "~/Downloads/electric_usage_report_03-01-2021_to_03-20-2022.csv",
           col_types = cols(
             `Account Number` = col_character(),
+            `Meter Number` = col_double(),
             Day = col_date(format = "%m/%d/%Y"),
             `Hour of Day` = col_time(format = ""),
             `Hourly Total` = col_double(),
             `Daily Total` = col_double(),
             `Unit of Measurement` = col_character()
-          )
+          ),
+          na = c("No Data")
         )
       
       return(usage)
@@ -317,7 +336,7 @@ shinyServer(function(input, output) {
       req(comparison_data)
       
       comparison_data() %>%
-        summarize(across(c(res_total, tod_total, dpp_total), sum)) %>%
+        summarize(across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE)) %>%
         gather() %>%
         mutate(key = factor(
           x = key,
@@ -337,7 +356,7 @@ shinyServer(function(input, output) {
         scale_fill_manual(
           name = "Rate Plan",
           values = c("#999999", "#66FF99", "#6699FF"),
-          guide = FALSE
+          guide = "none"
         ) +
         labs(title = "Total Usage Cost by Rate Plan") +
         theme_minimal(base_size = 14) +
@@ -345,7 +364,7 @@ shinyServer(function(input, output) {
           axis.line.x = element_blank(),
           axis.ticks.x = element_blank(),
           panel.grid.major.x = element_blank()
-        )      
+        )
     })
   
   output$hourly_text <-
