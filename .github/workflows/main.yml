@@ -35,7 +35,9 @@ jobs:
               "glue",
               "sentryR",
               "shinythemes",
-              "conflicted"
+              "conflicted",
+              "prettyunits",
+              "progress"
             )
           )
         shell: Rscript {0}
