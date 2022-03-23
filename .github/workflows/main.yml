@@ -44,7 +44,6 @@ jobs:
               "shiny",
               "rsconnect",
               "tidyverse",
-              "ellisvalentiner/lubridateExtras",
               "scales",
               "glue",
               "sentryR",
