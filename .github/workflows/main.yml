@@ -40,7 +40,7 @@ jobs:
             )
           )
           pak::pkg_system_requirements(
-            pkg = c(
+            package = c(
               "shiny",
               "rsconnect",
               "tidyverse",
