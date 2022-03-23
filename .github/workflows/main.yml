@@ -23,7 +23,7 @@ jobs:
           r-version: release
           http-user-agent: "R/4.0.0 (ubuntu-20.04) R (4.0.0 x86_64-pc-linux-gnu x86_64 linux-gnu) on GitHub Actions"
 
-      - name: Install packages
+      - name: Install packages and system dependencies
         run: |
           install.packages("pak", repos = "https://r-lib.github.io/p/pak/dev/")
           pak::pkg_install(
@@ -38,6 +38,23 @@ jobs:
               "shinythemes",
               "conflicted"
             )
+          )
+          pak::pkg_system_requirements(
+            pkg = c(
+              "shiny",
+              "rsconnect",
+              "tidyverse",
+              "ellisvalentiner/lubridateExtras",
+              "scales",
+              "glue",
+              "sentryR",
+              "shinythemes",
+              "conflicted"
+            ),
+            os = "ubuntu",
+            os_release = "20.04",
+            execute = TRUE,
+            echo = TRUE
           )
         shell: Rscript {0}
       
