@@ -8,11 +8,11 @@ on:
 
 jobs:
   deploy-shiny:
-    runs-on: ubuntu-20.04
+    runs-on: macOS-latest
     
     env:
       R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
-      RSPM: https://packagemanager.rstudio.com/cran/__linux__/xenial/latest
+      RSPM: https://packagemanager.rstudio.com/all/latest
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     
     steps:
@@ -21,7 +21,6 @@ jobs:
         id: install-r
         with:
           r-version: release
-          http-user-agent: "R/4.0.0 (ubuntu-20.04) R (4.0.0 x86_64-pc-linux-gnu x86_64 linux-gnu) on GitHub Actions"
 
       - name: Install packages and system dependencies
         run: |
@@ -38,22 +37,6 @@ jobs:
               "shinythemes",
               "conflicted"
             )
-          )
-          pak::pkg_system_requirements(
-            package = c(
-              "shiny",
-              "rsconnect",
-              "tidyverse",
-              "scales",
-              "glue",
-              "sentryR",
-              "shinythemes",
-              "conflicted"
-            ),
-            os = "ubuntu",
-            os_release = "20.04",
-            execute = TRUE,
-            echo = TRUE
           )
         shell: Rscript {0}
       
