@@ -75,6 +75,20 @@ shinyUI(fluidPage(
             width = 12
           ),
           h4(htmlOutput("hourly_text")),
+          column(
+            plotOutput(outputId = "monthly_usage_bars",
+                       # width = "303px"),
+                       width = "660px"),
+            align = "center",
+            width = 12
+          ),
+          column(
+            plotOutput(outputId = "month_tod_breakdown",
+                       # width = "303px"),
+                       width = "660px"),
+            align = "center",
+            width = 12
+          ),
           conditionalPanel(
             condition = "output.tod_hourly_usage",
             tabsetPanel(

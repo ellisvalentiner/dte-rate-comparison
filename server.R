@@ -2,7 +2,8 @@ library(shiny)
 
 library(tidyverse)
 library(lubridate)
-library(lubridateExtras)
+
+# library(lubridateExtras)
 library(scales)
 library(glue)
 
@@ -15,7 +16,7 @@ if (Sys.getenv("ENVIRONMENT", "local") == "production" &&
   configure_sentry(
     dsn = Sys.getenv("SENTRY_DSN"),
     app_name = "dte-rate-comparison",
-    app_version = "0.0.0-pre"
+    app_version = "1.1.0"
   )
   
   error_handler <- function() {
@@ -31,6 +32,17 @@ if (Sys.getenv("ENVIRONMENT", "local") == "production" &&
   options(shiny.error = error_handler)
 }
 
+is_weekend <- function (x) 
+{
+  wday(x = as_date(x), label = FALSE, abbr = FALSE) %in% c(1, 
+                                                           7)
+}
+
+is_weekday <- function (x) 
+{
+  wday(x = as_date(x), label = FALSE, abbr = FALSE) %in% 2:6
+}
+
 res_rate <- function(kWh) {
   # Residential Energy Service
   # First 17 kWh per day
@@ -42,153 +54,154 @@ res_rate <- function(kWh) {
   return(kWh * 0.08676 + pmax(kWh - 17, 0) * 0.1066)
 }
 
+dpp_rates <-
+  tribble(
+    ~ rate,
+    ~ dpp_cost,
+    # Dynamic Peak Pricing Rates
+    "Off-Peak",
+    0.048,
+    "Mid-Peak",
+    0.092,
+    "On-Peak",
+    0.166,
+    "Critical Peak",
+    0.95
+  )
+
+tod_rates <-
+  tribble(
+    ~ rate,
+    ~ tod_cost,
+    # Time of Day Rates
+    "Summer On-Peak",
+    0.11841 + 0.04261,
+    "Summer Off-Peak",
+    0.0160 + 0.04261,
+    "Winter On-Peak",
+    0.09341 + 0.04261,
+    "Winter Off-Peak",
+    0.00948 + 0.04261,
+  )
+
+holidays_tbl <-
+  tribble(
+    ~ holiday,
+    ~ date,
+    "New Year’s Day",
+    "2020-01-01",
+    "Good Friday",
+    "2020-04-10",
+    "Memorial Day",
+    "2020-05-25",
+    "Independence Day",
+    "2020-07-04",
+    "Labor Day",
+    "2020-09-07",
+    "Thanksgiving Day",
+    "2020-11-26",
+    "Christmas Day",
+    "2020-12-25",
+    
+    "New Year’s Day",
+    "2021-01-01",
+    "Good Friday",
+    "2021-04-02",
+    "Memorial Day",
+    "2021-05-31",
+    "Independence Day",
+    "2021-07-04",
+    "Labor Day",
+    "2021-09-06",
+    "Thanksgiving Day",
+    "2021-11-25",
+    "Christmas Day",
+    "2021-12-25",
+    
+    "New Year’s Day",
+    "2022-01-01",
+    "Good Friday",
+    "2022-04-15",
+    "Memorial Day",
+    "2022-05-30",
+    "Independence Day",
+    "2022-07-04",
+    "Labor Day",
+    "2022-09-05",
+    "Thanksgiving Day",
+    "2022-11-24",
+    "Christmas Day",
+    "2022-12-25",
+  ) %>%
+  type_convert(col_types = cols(holiday = col_character(),
+                                date = col_date(format = "%Y-%m-%d")))
+
+tod_tbl <-
+  tribble(
+    ~ i,
+    ~ start,
+    ~ end,
+    ~ rate_tier,
+    1,
+    "00:00:00",
+    "07:00:00",
+    "Off-peak",
+    2,
+    "07:00:00",
+    "19:00:00",
+    "On-peak",
+    3,
+    "19:00:00",
+    "24:00:00",
+    "Off-peak"
+  ) %>%
+  type_convert(
+    col_types = cols(
+      i = col_integer(),
+      start = col_time(),
+      end = col_time(),
+      rate_tier = col_character()
+    )
+  )
+
+dpp_tbl <-
+  tribble(
+    ~ i,
+    ~ start,
+    ~ end,
+    ~ rate_tier,
+    1,
+    "00:00:00",
+    "07:00:00",
+    "Off-peak",
+    2,
+    "07:00:00",
+    "15:00:00",
+    "Mid-peak",
+    3,
+    "15:00:00",
+    "19:00:00",
+    "On-peak",
+    4,
+    "19:00:00",
+    "23:00:00",
+    "Mid-peak",
+    5,
+    "23:00:00",
+    "24:00:00",
+    "Off-peak"
+  ) %>%
+  type_convert(
+    col_types = cols(
+      i = col_integer(),
+      start = col_time(),
+      end = col_time(),
+      rate_tier = col_character()
+    )
+  )
+
 # Define server logic
 shinyServer(function(input, output) {
-  dpp_rates <-
-    tribble(
-      ~ rate,
-      ~ dpp_cost,
-      # Dynamic Peak Pricing Rates
-      "Off-Peak",
-      0.048,
-      "Mid-Peak",
-      0.092,
-      "On-Peak",
-      0.166,
-      "Critical Peak",
-      0.95
-    )
-  
-  tod_rates <-
-    tribble(
-      ~ rate,
-      ~ tod_cost,
-      # Time of Day Rates
-      "Summer On-Peak",
-      0.11841 + 0.04261,
-      "Summer Off-Peak",
-      0.0160 + 0.04261,
-      "Winter On-Peak",
-      0.09341 + 0.04261,
-      "Winter Off-Peak",
-      0.00948 + 0.04261,
-    )
-  
-  holidays_tbl <-
-    tribble(
-      ~ holiday,
-      ~ date,
-      "New Year’s Day",
-      "2020-01-01",
-      "Good Friday",
-      "2020-04-10",
-      "Memorial Day",
-      "2020-05-25",
-      "Independence Day",
-      "2020-07-04",
-      "Labor Day",
-      "2020-09-07",
-      "Thanksgiving Day",
-      "2020-11-26",
-      "Christmas Day",
-      "2020-12-25",
-      
-      "New Year’s Day",
-      "2021-01-01",
-      "Good Friday",
-      "2021-04-02",
-      "Memorial Day",
-      "2021-05-31",
-      "Independence Day",
-      "2021-07-04",
-      "Labor Day",
-      "2021-09-06",
-      "Thanksgiving Day",
-      "2021-11-25",
-      "Christmas Day",
-      "2021-12-25",
-      
-      "New Year’s Day",
-      "2022-01-01",
-      "Good Friday",
-      "2022-04-15",
-      "Memorial Day",
-      "2022-05-30",
-      "Independence Day",
-      "2022-07-04",
-      "Labor Day",
-      "2022-09-05",
-      "Thanksgiving Day",
-      "2022-11-24",
-      "Christmas Day",
-      "2022-12-25",
-    ) %>%
-    type_convert(col_types = cols(holiday = col_character(),
-                                  date = col_date(format = "%Y-%m-%d")))
-  
-  tod_tbl <-
-    tribble(
-      ~ i,
-      ~ start,
-      ~ end,
-      ~ rate_tier,
-      1,
-      "00:00:00",
-      "07:00:00",
-      "Off-peak",
-      2,
-      "07:00:00",
-      "19:00:00",
-      "On-peak",
-      3,
-      "19:00:00",
-      "24:00:00",
-      "Off-peak"
-    ) %>%
-    type_convert(
-      col_types = cols(
-        i = col_integer(),
-        start = col_time(),
-        end = col_time(),
-        rate_tier = col_character()
-      )
-    )
-  
-  dpp_tbl <-
-    tribble(
-      ~ i,
-      ~ start,
-      ~ end,
-      ~ rate_tier,
-      1,
-      "00:00:00",
-      "07:00:00",
-      "Off-peak",
-      2,
-      "07:00:00",
-      "15:00:00",
-      "Mid-peak",
-      3,
-      "15:00:00",
-      "19:00:00",
-      "On-peak",
-      4,
-      "19:00:00",
-      "23:00:00",
-      "Mid-peak",
-      5,
-      "23:00:00",
-      "24:00:00",
-      "Off-peak"
-    ) %>%
-    type_convert(
-      col_types = cols(
-        i = col_integer(),
-        start = col_time(),
-        end = col_time(),
-        rate_tier = col_character()
-      )
-    )
   
   usage <-
     reactive({
@@ -303,7 +316,7 @@ shinyServer(function(input, output) {
       comparison_data() %>%
         # comparison_data %>%
         summarize(
-          across(c(res_total, tod_total, dpp_total), sum),
+          across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE),
           best_rate = factor(
             x = which.min(c(res_total, tod_total, dpp_total)),
             levels = 1:3,
@@ -350,6 +363,12 @@ shinyServer(function(input, output) {
         )) %>%
         ggplot(aes(x = key, y = value, fill = key)) +
         geom_bar(stat = "identity", width = 0.5) +
+        geom_text(
+          aes(label = scales::dollar(value)),
+          position = position_dodge(width = 1),
+          vjust = -0.5,
+          size = 5
+        ) +
         scale_x_discrete(name = NULL) +
         scale_y_continuous(name = NULL,
                            labels = dollar_format()) +
@@ -365,6 +384,56 @@ shinyServer(function(input, output) {
           axis.ticks.x = element_blank(),
           panel.grid.major.x = element_blank()
         )
+    })
+  
+  output$monthly_usage_bars <- 
+    renderPlot({
+      comparison_data() %>%
+        group_by(month = floor_date(Day, unit = "month")) %>%
+        summarize(
+          across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE),
+          best_rate = factor(
+            x = which.min(c(res_total, tod_total, dpp_total)),
+            levels = 1:3,
+            labels = c(
+              "Residential Electricity Rate",
+              "Time of Day",
+              "Dynamic Peak Pricing"
+            )
+          ),
+          tod_pct = abs((tod_total - res_total) / res_total),
+          dpp_pct = abs((dpp_total - res_total) / res_total),
+          tod_saving = tod_total < res_total,
+          dpp_saving = dpp_total < res_total
+        ) %>%
+        pivot_longer(cols = c(res_total, tod_total, dpp_total)) %>%
+        mutate(
+          name = factor(name, levels = c("res_total", "tod_total", "dpp_total"))
+        ) %>%
+        ggplot(aes(x = month, y = value, fill = name)) +
+        geom_bar(stat = "identity", position = "dodge") +
+        scale_x_date(name = NULL) +
+        scale_y_continuous(name = NULL,
+                           labels = dollar_format()) +
+        scale_fill_manual(
+          name = "Rate Plan",
+          values = c("#999999", "#66FF99", "#6699FF"),
+          labels = c(
+            "Residential Electricity Service",
+            "Time of Day",
+            "Dynamic Peak Pricing"
+          )
+          # guide = "none"
+        ) +
+        labs(title = "Monthly Usage Cost by Rate Plan") +
+        theme_minimal(base_size = 14) +
+        theme(
+          axis.line.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          panel.grid.major.x = element_blank(),
+          legend.position = "bottom"
+        )
+      
     })
   
   output$hourly_text <-
@@ -479,6 +548,35 @@ shinyServer(function(input, output) {
         theme_minimal(base_size = 14) +
         theme(legend.position = "bottom")
       
+    })
+  
+  output$month_tod_breakdown <-
+    renderPlot({
+      # require usage data
+      req(usage)
+      
+      usage() %>%
+        group_by(month = floor_date(Day, unit = "month"), `Hour of Day`) %>%
+        summarize(
+          kwh = sum(`Hourly Total`, na.rm = TRUE)
+        ) %>%
+        ggplot(aes(y = month, x = `Hour of Day`, fill = kwh)) +
+        geom_tile() +
+        geom_vline(xintercept = hms("11:00:00")) +
+        scale_y_date(name = NULL) +
+        # scale_y_continuous(name = NULL,
+        #                    labels = dollar_format()) +
+        scale_fill_viridis_c(
+          name = NULL,
+          guide = "none"
+        ) +
+        labs(title = "Usage by Month and Hour of Day") +
+        theme_minimal(base_size = 14) +
+        theme(
+          axis.line.x = element_blank(),
+          axis.ticks.x = element_blank(),
+          panel.grid.major.x = element_blank()
+        )
     })
   
   outputOptions(output, "tod_hourly_usage", suspendWhenHidden = FALSE)
