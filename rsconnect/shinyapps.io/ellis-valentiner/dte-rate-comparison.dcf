@@ -1,0 +1,13 @@
+name: dte-rate-comparison
+title: dte-rate-comparison
+username:
+account: ellis-valentiner
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3435089
+bundleId: 6469790
+url: https://ellis-valentiner.shinyapps.io/dte-rate-comparison/
+when: 1667445565.238
+lastSyncTime: 1667445565.238
+asMultiple: FALSE
+asStatic: FALSE

@@ -1,204 +1,37 @@
+#!/bin/R
 library(shiny)
-
 library(tidyverse)
 library(lubridate)
-
-# library(lubridateExtras)
 library(scales)
 library(glue)
-
-library(sentryR)
-
 conflicted::conflict_prefer("filter", "dplyr")
+source("utils.R")
 
-if (Sys.getenv("ENVIRONMENT", "local") == "production" &&
-    Sys.getenv("SENTRY_DSN") != "") {
-  configure_sentry(
-    dsn = Sys.getenv("SENTRY_DSN"),
-    app_name = "dte-rate-comparison",
-    app_version = "1.1.0"
-  )
-  
-  error_handler <- function() {
-    capture(
-      exception = list(
-        type = geterrmessage(),
-        value = geterrmessage(),
-        stacktrace = list(frames = sentryR:::calls_to_stacktrace(calls = sys.calls()))
-      ),
-      level = "error"
+time_of_day_rate <- function(df) {
+  df %>%
+    mutate(
+      hour = as.integer(`Hour of Day`) / 3600,
+      capacity_energy_charge = case_when(
+        month(Day) %in% c(6:10) ~ if_else(
+          is_weekday(Day) &
+            between(hour, 11, 18),
+          `Hourly Total` * 0.11841,  # 11.841¢ per kWh for all on-peak kWh June through October
+          `Hourly Total` * 0.0160    # 1.160¢ per kWh for all off-peak kWh June through October
+        ),
+        TRUE ~ if_else(
+          is_weekday(Day) &
+            between(hour, 11, 18),
+          `Hourly Total` * 0.09341, # 9.341¢ per kWh for all On-peak kWh November through May
+          `Hourly Total` * 0.00948 # 0.948¢ per kWh for all Off-peak kWh November through May
+        )
+      )
+    ) %>%
+    summarize(
+      capacity_energy_charge = sum(capacity_energy_charge, na.rm = TRUE),
+      non_capacity_energy_charge = sum(`Hourly Total`) * 0.04261, # 4.261¢ per kWh for all kWh
+      
     )
-  }
-  options(shiny.error = error_handler)
 }
-
-is_weekend <- function (x) 
-{
-  wday(x = as_date(x), label = FALSE, abbr = FALSE) %in% c(1, 
-                                                           7)
-}
-
-is_weekday <- function (x) 
-{
-  wday(x = as_date(x), label = FALSE, abbr = FALSE) %in% 2:6
-}
-
-res_rate <- function(kWh) {
-  # Residential Energy Service
-  # First 17 kWh per day
-  #   Capacity Energy      4.500¢
-  #   Non-Capacity Energy  4.176¢
-  # Additional kWh
-  #   Capacity Energy      6.484¢
-  #   Non-Capacity Energy  4.176¢
-  return(kWh * 0.08676 + pmax(kWh - 17, 0) * 0.1066)
-}
-
-dpp_rates <-
-  tribble(
-    ~ rate,
-    ~ dpp_cost,
-    # Dynamic Peak Pricing Rates
-    "Off-Peak",
-    0.048,
-    "Mid-Peak",
-    0.092,
-    "On-Peak",
-    0.166,
-    "Critical Peak",
-    0.95
-  )
-
-tod_rates <-
-  tribble(
-    ~ rate,
-    ~ tod_cost,
-    # Time of Day Rates
-    "Summer On-Peak",
-    0.11841 + 0.04261,
-    "Summer Off-Peak",
-    0.0160 + 0.04261,
-    "Winter On-Peak",
-    0.09341 + 0.04261,
-    "Winter Off-Peak",
-    0.00948 + 0.04261,
-  )
-
-holidays_tbl <-
-  tribble(
-    ~ holiday,
-    ~ date,
-    "New Year’s Day",
-    "2020-01-01",
-    "Good Friday",
-    "2020-04-10",
-    "Memorial Day",
-    "2020-05-25",
-    "Independence Day",
-    "2020-07-04",
-    "Labor Day",
-    "2020-09-07",
-    "Thanksgiving Day",
-    "2020-11-26",
-    "Christmas Day",
-    "2020-12-25",
-    
-    "New Year’s Day",
-    "2021-01-01",
-    "Good Friday",
-    "2021-04-02",
-    "Memorial Day",
-    "2021-05-31",
-    "Independence Day",
-    "2021-07-04",
-    "Labor Day",
-    "2021-09-06",
-    "Thanksgiving Day",
-    "2021-11-25",
-    "Christmas Day",
-    "2021-12-25",
-    
-    "New Year’s Day",
-    "2022-01-01",
-    "Good Friday",
-    "2022-04-15",
-    "Memorial Day",
-    "2022-05-30",
-    "Independence Day",
-    "2022-07-04",
-    "Labor Day",
-    "2022-09-05",
-    "Thanksgiving Day",
-    "2022-11-24",
-    "Christmas Day",
-    "2022-12-25",
-  ) %>%
-  type_convert(col_types = cols(holiday = col_character(),
-                                date = col_date(format = "%Y-%m-%d")))
-
-tod_tbl <-
-  tribble(
-    ~ i,
-    ~ start,
-    ~ end,
-    ~ rate_tier,
-    1,
-    "00:00:00",
-    "07:00:00",
-    "Off-peak",
-    2,
-    "07:00:00",
-    "19:00:00",
-    "On-peak",
-    3,
-    "19:00:00",
-    "24:00:00",
-    "Off-peak"
-  ) %>%
-  type_convert(
-    col_types = cols(
-      i = col_integer(),
-      start = col_time(),
-      end = col_time(),
-      rate_tier = col_character()
-    )
-  )
-
-dpp_tbl <-
-  tribble(
-    ~ i,
-    ~ start,
-    ~ end,
-    ~ rate_tier,
-    1,
-    "00:00:00",
-    "07:00:00",
-    "Off-peak",
-    2,
-    "07:00:00",
-    "15:00:00",
-    "Mid-peak",
-    3,
-    "15:00:00",
-    "19:00:00",
-    "On-peak",
-    4,
-    "19:00:00",
-    "23:00:00",
-    "Mid-peak",
-    5,
-    "23:00:00",
-    "24:00:00",
-    "Off-peak"
-  ) %>%
-  type_convert(
-    col_types = cols(
-      i = col_integer(),
-      start = col_time(),
-      end = col_time(),
-      rate_tier = col_character()
-    )
-  )
 
 # Define server logic
 shinyServer(function(input, output) {
@@ -234,7 +67,6 @@ shinyServer(function(input, output) {
       usage <- 
         read_csv(
           file = input$file$datapath,
-          # file = "~/Downloads/electric_usage_report_03-01-2021_to_03-20-2022.csv",
           col_types = cols(
             `Account Number` = col_character(),
             `Meter Number` = col_double(),
@@ -249,58 +81,7 @@ shinyServer(function(input, output) {
       
       return(usage)
     })
-  
-  comparison_data <-
-    reactive({
-      req(usage)
-      usage() %>%
-        mutate(
-          hour = as.integer(`Hour of Day`) / 3600,
-          dpp_rate = case_when(
-            Day %in% holidays_tbl$date ~ "Off-Peak",
-            is_weekend(Day) ~ "Off-Peak",
-            is_weekday(Day) & hour < 7 ~ "Off-Peak",
-            is_weekday(Day) & hour >= 23 ~ "Off-Peak",
-            is_weekday(Day) &
-              hour >= 7 & hour < 15 ~ "Mid-Peak",
-            is_weekday(Day) &
-              hour >= 19 & hour < 23 ~ "Mid-Peak",
-            is_weekday(Day) &
-              hour >= 15 & hour < 19 ~ "On-Peak"
-          ),
-          tod_rate = case_when(
-            month(Day) %in% c(6:10) ~ if_else(
-              is_weekday(Day) &
-                between(hour, 11, 18),
-              "Summer On-Peak",
-              "Summer Off-Peak"
-            ),
-            TRUE ~ if_else(
-              is_weekday(Day) &
-                between(hour, 11, 18),
-              "Winter On-Peak",
-              "Winter Off-Peak"
-            )
-          )
-        ) %>%
-        left_join(y = dpp_rates,
-                  by = c("dpp_rate" = "rate")) %>%
-        left_join(y = tod_rates,
-                  by = c("tod_rate" = "rate")) %>%
-        mutate(dpp_price = `Hourly Total` * dpp_cost,
-               tod_price = `Hourly Total` * tod_cost) %>%
-        group_by(Day) %>%
-        summarize(
-          daily_kwh = sum(`Hourly Total`),
-          res_total = res_rate(daily_kwh),
-          dpp_total = sum(dpp_price),
-          tod_total = sum(tod_price),
-          .groups = "drop"
-        ) %>%
-        mutate(dpp_savings = res_total - dpp_total,
-               tod_savings = res_total - tod_total)
-    })
-  
+
   output$placeholder <-
     renderText({
       req(is.null(input$file))
@@ -311,10 +92,13 @@ shinyServer(function(input, output) {
   output$recommendation <-
     renderText({
       # require
-      req(comparison_data)
-      
-      comparison_data() %>%
-        # comparison_data %>%
+      req(usage)
+      tribble(
+        ~res_total, ~tod_total, ~dpp_total,
+        sum(unlist(residential_service_rate_details(usage()))),
+        sum(unlist(residential_time_of_day_rate_details(usage()))),
+        sum(unlist(dynamic_peak_pricing_rate_details(usage())))
+      ) %>%
         summarize(
           across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE),
           best_rate = factor(
@@ -341,19 +125,97 @@ shinyServer(function(input, output) {
           )
         )) %>%
         pull(text)
+    })
+  
+  output$bill_details <- 
+    renderTable({
+      req(usage)
+
+      res <- 
+        residential_service_rate_details(usage()) %>%
+        data.frame() %>%
+        pivot_longer(
+          cols = 1:6,
+          names_to = "item",
+          values_to = "amount"
+        ) %>%
+        add_column(rate = "Residential Electricity Service", .before = 1)
+            
+      tod <- 
+        residential_time_of_day_rate_details(usage()) %>%
+        data.frame() %>%
+        pivot_longer(
+          cols = 1:8,
+          names_to = "item",
+          values_to = "amount"
+        ) %>%
+        add_column(rate = "Time of Day", .before = 1)
       
+      dpp <- 
+        dynamic_peak_pricing_rate_details(usage()) %>%
+        data.frame() %>%
+        pivot_longer(
+          cols = 1:8,
+          names_to = "item",
+          values_to = "amount"
+        ) %>%
+        add_column(rate = "Dynamic Peak Pricing", .before = 1)
+      
+      comparison <- 
+        bind_rows(res, tod, dpp) %>%
+        mutate(
+          rate = factor(
+            x = rate,
+            levels = c(
+              "Residential Electricity Service",
+              "Time of Day",
+              "Dynamic Peak Pricing"
+            ),
+            labels = c(
+              "Residential Electricity Service",
+              "Time of Day",
+              "Dynamic Peak Pricing"
+            ),
+            ordered = TRUE
+          ),
+          item = case_when(
+            startsWith(item, "power_supply_capacity_charge") ~ "Power Supply Capacity Charge",
+            item == "power_supply_non_capacity_charge" ~ "Power Supply Non-Capacity Charge",
+            item == "power_supply_cost_recovery" ~ "Power Supply Cost Recovery",
+            item == "service_charge" ~ "Service Charge",
+            item == "distribution_charge" ~ "Distribution Charge",
+            TRUE ~ "Other"
+          )
+        )
+      
+      comparison %>%
+        group_by(rate, item) %>%
+        summarize(
+          amount = dollar(sum(amount, na.rm = TRUE))
+        ) %>%
+        pivot_wider(
+          id_cols = item,
+          names_from = rate,
+          values_from = amount
+        )
     })
   
   output$usage_bars <-
     renderPlot({
-      req(comparison_data)
-      
-      comparison_data() %>%
-        summarize(across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE)) %>%
-        gather() %>%
+      req(usage)
+      tribble(
+        ~key, ~value,
+        "Residential Electricity Service", sum(unlist(residential_service_rate_details(usage()))),
+        "Time of Day", sum(unlist(residential_time_of_day_rate_details(usage()))),
+        "Dynamic Peak Pricing", sum(unlist(dynamic_peak_pricing_rate_details(usage())))
+        ) %>%
         mutate(key = factor(
           x = key,
-          levels = c("res_total", "tod_total", "dpp_total"),
+          levels = c(
+            "Residential Electricity Service",
+            "Time of Day",
+            "Dynamic Peak Pricing"
+          ),
           labels = c(
             "Residential Electricity Service",
             "Time of Day",
@@ -386,31 +248,78 @@ shinyServer(function(input, output) {
         )
     })
   
-  output$monthly_usage_bars <- 
+  output$monthly_usage_bars <-
     renderPlot({
-      comparison_data() %>%
-        group_by(month = floor_date(Day, unit = "month")) %>%
-        summarize(
-          across(c(res_total, tod_total, dpp_total), sum, na.rm = TRUE),
-          best_rate = factor(
-            x = which.min(c(res_total, tod_total, dpp_total)),
-            levels = 1:3,
-            labels = c(
-              "Residential Electricity Rate",
+      req(usage)
+      
+      res <- 
+        usage() %>%
+        split(floor_date(usage()$Day, "month")) %>%
+        map(residential_service_rate_details) %>%
+        map(unlist) %>%
+        map(sum, na.rm=TRUE) %>%
+        flatten() %>%
+        enframe() %>%
+        unnest(cols = c(value)) %>%
+        mutate(
+          rate = "Residential Electricity Rate"
+        )
+      
+      tod <- 
+        usage() %>%
+        split(floor_date(usage()$Day, "month")) %>%
+        map(residential_time_of_day_rate_details) %>%
+        map(unlist) %>%
+        map(sum, na.rm=TRUE) %>%
+        flatten() %>%
+        enframe() %>%
+        unnest(cols = c(value)) %>%
+        mutate(
+          rate = "Time of Day"
+        )
+      
+      dpp <- 
+        usage() %>%
+        split(floor_date(usage()$Day, "month")) %>%
+        map(dynamic_peak_pricing_rate_details) %>%
+        map(unlist) %>%
+        map(sum, na.rm=TRUE) %>%
+        flatten() %>%
+        enframe() %>%
+        unnest(cols = c(value)) %>%
+        mutate(
+          rate = "Dynamic Peak Pricing"
+        )
+
+      bind_rows(
+        res,
+        tod,
+        dpp
+      ) %>%
+        mutate(
+          name = ymd(name),
+          rate = factor(
+            x = rate,
+            levels = c(
+              "Residential Electricity Service",
               "Time of Day",
               "Dynamic Peak Pricing"
-            )
-          ),
-          tod_pct = abs((tod_total - res_total) / res_total),
-          dpp_pct = abs((dpp_total - res_total) / res_total),
-          tod_saving = tod_total < res_total,
-          dpp_saving = dpp_total < res_total
+            ),
+            labels = c(
+              "Residential Electricity Service",
+              "Time of Day",
+              "Dynamic Peak Pricing"
+            ),
+            ordered = TRUE
+          )
         ) %>%
-        pivot_longer(cols = c(res_total, tod_total, dpp_total)) %>%
-        mutate(
-          name = factor(name, levels = c("res_total", "tod_total", "dpp_total"))
-        ) %>%
-        ggplot(aes(x = month, y = value, fill = name)) +
+        ggplot(
+          aes(
+            x = name,
+            y = value,
+            fill = rate
+          )
+        ) +
         geom_bar(stat = "identity", position = "dodge") +
         scale_x_date(name = NULL) +
         scale_y_continuous(name = NULL,
@@ -423,7 +332,6 @@ shinyServer(function(input, output) {
             "Time of Day",
             "Dynamic Peak Pricing"
           )
-          # guide = "none"
         ) +
         labs(title = "Monthly Usage Cost by Rate Plan") +
         theme_minimal(base_size = 14) +
@@ -433,7 +341,7 @@ shinyServer(function(input, output) {
           panel.grid.major.x = element_blank(),
           legend.position = "bottom"
         )
-      
+
     })
   
   output$hourly_text <-
@@ -445,7 +353,7 @@ shinyServer(function(input, output) {
         usage() %>%
         filter(is_weekday(Day),!Day %in% holidays_tbl$date) %>%
         group_by(`Hour of Day`) %>%
-        summarize(avg = mean(`Hourly Total`)) %>%
+        summarize(avg = mean(`Hourly Total`, na.rm = TRUE)) %>%
         ungroup()
       
       x <-

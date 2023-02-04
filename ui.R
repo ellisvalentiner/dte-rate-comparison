@@ -74,6 +74,14 @@ shinyUI(fluidPage(
             align = "center",
             width = 12
           ),
+          column(
+            tableOutput(outputId = "bill_details"
+                       # width = "303px"),
+                       # width = "660px"
+                       ),
+            align = "center",
+            width = 12
+          ),
           h4(htmlOutput("hourly_text")),
           column(
             plotOutput(outputId = "monthly_usage_bars",
